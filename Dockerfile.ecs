@@ -55,6 +55,7 @@ COPY --from=backend-build /opt/venv /opt/venv
 
 COPY . /app/
 
+# Esegui tutti i comandi che richiedono root PRIMA di creare l'utente
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         gcc \
@@ -115,6 +116,21 @@ RUN apt-get update && \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# Create directories for EFS mounts
+RUN mkdir -p /efs/postgres_data \
+    && mkdir -p /efs/config \
+    && mkdir -p /efs/logs
+
+# Crea l'utente DOPO aver eseguito tutti i comandi che richiedono root
+RUN useradd -m -s /bin/bash mdw && \
+    chown -R mdw:mdw /app && \
+    chown -R mdw:mdw /efs && \
+    chown -R mdw:mdw /var/log && \
+    chown -R mdw:mdw /etc/postgresql && \
+    chown -R mdw:mdw /var/lib/postgresql && \
+    chmod +x /app/setup_utils/* && \
+    chmod 0644 /etc/cron.d/cronjob
+
 ENV POSTGRES_DB_ENABLED=true
 ENV DB_INIT_ENABLED=true
 ENV REDIS_ENABLED=true
@@ -126,27 +142,9 @@ ENV MERGE_COMMIT_SHA=$MERGE_COMMIT_SHA
 
 ENV PATH="/opt/venv/bin:/usr/lib/postgresql/15/bin:/usr/local/bin:$PATH"
 
-
-
-# Create directories for EFS mounts
-RUN mkdir -p /efs/postgres_data \
-    && mkdir -p /efs/config \
-    && mkdir -p /efs/logs
-
-# Create user and set permissions AFTER creating directories
-RUN useradd -m -s /bin/bash mdw && \
-    chown -R mdw:mdw /app && \
-    chown -R mdw:mdw /efs && \
-    chown -R mdw:mdw /var/log && \
-    chown -R mdw:mdw /etc/postgresql && \
-    chown -R mdw:mdw /var/lib/postgresql && \
-    chmod +x /app/setup_utils/* && \
-    chmod 0644 /etc/cron.d/cronjob
-
-
 EXPOSE 3000 9696 9697
 
-# Cambia l'utente
+# Cambia l'utente ALLA FINE
 USER mdw
 
-CMD ["/bin/bash", "-c", "/app/setup_utils/start-ecs.sh"] 
+CMD ["/bin/bash", "-c", "/app/setup_utils/start-ecs.sh"]
