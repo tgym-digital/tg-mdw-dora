@@ -121,15 +121,6 @@ RUN mkdir -p /efs/postgres_data \
     && mkdir -p /efs/config \
     && mkdir -p /efs/logs
 
-# Crea l'utente DOPO aver eseguito tutti i comandi che richiedono root
-RUN useradd -m -s /bin/bash mdw && \
-    chown -R mdw:mdw /app && \
-    chown -R mdw:mdw /efs && \
-    chown -R mdw:mdw /var/log && \
-    chown -R mdw:mdw /etc/postgresql && \
-    chown -R mdw:mdw /var/lib/postgresql && \
-    chmod +x /app/setup_utils/* && \
-    chmod 0644 /etc/cron.d/cronjob
 
 ENV POSTGRES_DB_ENABLED=true
 ENV DB_INIT_ENABLED=true
@@ -144,7 +135,5 @@ ENV PATH="/opt/venv/bin:/usr/lib/postgresql/15/bin:/usr/local/bin:$PATH"
 
 EXPOSE 3000 9696 9697
 
-# Cambia l'utente ALLA FINE
-USER mdw
 
 CMD ["/bin/bash", "-c", "/app/setup_utils/start-ecs.sh"]
