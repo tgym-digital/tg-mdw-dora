@@ -55,14 +55,6 @@ COPY --from=backend-build /opt/venv /opt/venv
 
 COPY . /app/
 
-# Dopo l'installazione dei pacchetti, prima del CMD
-RUN useradd -m -s /bin/bash mdw && \
-    chown -R mdw:mdw /app && \
-    chown -R mdw:mdw /efs
-
-# Cambia l'utente
-USER mdw
-
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         gcc \
@@ -141,6 +133,15 @@ RUN mkdir -p /efs/postgres_data \
     && mkdir -p /efs/config \
     && mkdir -p /efs/logs
 
+# Create user and set permissions AFTER creating directories
+RUN useradd -m -s /bin/bash mdw && \
+    chown -R mdw:mdw /app && \
+    chown -R mdw:mdw /efs
+
+
 EXPOSE 3000 9696 9697
+
+# Cambia l'utente
+USER mdw
 
 CMD ["/bin/bash", "-c", "/app/setup_utils/start-ecs.sh"] 
