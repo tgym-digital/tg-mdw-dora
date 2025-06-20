@@ -103,7 +103,7 @@ jobs:
                 "essential": true,
                 "portMappings": [
                   {
-                    "containerPort": 3333,
+                    "containerPort": 3000,
                     "protocol": "tcp"
                   },
                   {
@@ -146,7 +146,7 @@ jobs:
                   },
                   {
                     "name": "PORT",
-                    "value": "3333"
+                    "value": "3000"
                   },
                   {
                     "name": "ANALYTICS_SERVER_PORT",

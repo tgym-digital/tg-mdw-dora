@@ -55,6 +55,14 @@ COPY --from=backend-build /opt/venv /opt/venv
 
 COPY . /app/
 
+# Dopo l'installazione dei pacchetti, prima del CMD
+RUN useradd -m -s /bin/bash mdw && \
+    chown -R mdw:mdw /app && \
+    chown -R mdw:mdw /efs
+
+# Cambia l'utente
+USER mdw
+
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         gcc \
@@ -125,6 +133,8 @@ ENV BUILD_DATE=$BUILD_DATE
 ENV MERGE_COMMIT_SHA=$MERGE_COMMIT_SHA
 
 ENV PATH="/opt/venv/bin:/usr/lib/postgresql/15/bin:/usr/local/bin:$PATH"
+
+
 
 # Create directories for EFS mounts
 RUN mkdir -p /efs/postgres_data \
