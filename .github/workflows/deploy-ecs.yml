@@ -22,8 +22,8 @@ env:
   ECR_REPOSITORY: "mwcloud-utils/tg-mdw-dora"
   ECS_CLUSTER: "mwcloud-tools"
   ECS_SERVICE: "tg-mdw-dora"
-  DIGITAL_AWS_ROLE: "arn:aws:iam::931900621347:role/github-actions-services-role"
-  UTILITIES_AWS_ROLE: "arn:aws:iam::992382793490:role/github-actions-services-role"
+  DIGITAL_AWS_ROLE: ${{ vars.SERVICES_AWS_ROLE }}
+  UTILITIES_AWS_ROLE: ${{ vars.UTILITIES_AWS_ROLE }}
 
 jobs:
   build-and-push:
