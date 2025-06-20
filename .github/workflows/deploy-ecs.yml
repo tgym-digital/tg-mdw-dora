@@ -1,0 +1,276 @@
+name: Deploy to Cross-Account ECS
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      push_only:
+        description: 'Push image only (skip deployment)'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  AWS_REGION: eu-west-1
+  DIGITAL_ACCOUNT_ID: "931900621347"
+  UTILITIES_ACCOUNT_ID: "992382793490"
+  ECR_REPOSITORY: "mwcloud-utils/tg-mdw-dora"
+  ECS_CLUSTER: "mwcloud-tools"
+  ECS_SERVICE: "tg-mdw-dora"
+  DIGITAL_AWS_ROLE: "arn:aws:iam::931900621347:role/github-actions-services-role"
+  UTILITIES_AWS_ROLE: "arn:aws:iam::992382793490:role/github-actions-services-role"
+
+jobs:
+  build-and-push:
+    name: Build and Push to ECR (Digital Account)
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials for Digital Account
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ env.DIGITAL_AWS_ROLE }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build, tag, and push image to Amazon ECR
+      id: build-image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+        BUILD_DATE: ${{ github.event.head_commit.timestamp }}
+      run: |
+        # Build a docker container and push it to ECR
+        docker build -f Dockerfile.ecs \
+          --build-arg BUILD_DATE="$BUILD_DATE" \
+          --build-arg MERGE_COMMIT_SHA="$IMAGE_TAG" \
+          -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker build -f Dockerfile.ecs \
+          --build-arg BUILD_DATE="$BUILD_DATE" \
+          --build-arg MERGE_COMMIT_SHA="$IMAGE_TAG" \
+          -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+        echo "image_latest=$ECR_REGISTRY/$ECR_REPOSITORY:latest" >> $GITHUB_OUTPUT
+
+    - name: Generate ECS Task Definition
+      id: task-def
+      if: ${{ github.event.inputs.push_only != 'true' }}
+      run: |
+        cat > task-definition.json << 'EOF'
+        {
+          "family": "tg-mdw-dora-task",
+          "networkMode": "awsvpc",
+          "requiresCompatibilities": ["FARGATE"],
+          "cpu": "2048",
+          "memory": "4096",
+          "executionRoleArn": "arn:aws:iam::${{ env.UTILITIES_ACCOUNT_ID }}:role/ecsTaskExecutionRole",
+          "taskRoleArn": "arn:aws:iam::${{ env.UTILITIES_ACCOUNT_ID }}:role/ecsTaskRole",
+          "containerDefinitions": [
+            {
+              "name": "tg-mdw-dora-container",
+              "image": "${{ steps.build-image.outputs.image }}",
+              "essential": true,
+              "portMappings": [
+                {
+                  "containerPort": 3333,
+                  "protocol": "tcp"
+                },
+                {
+                  "containerPort": 9696,
+                  "protocol": "tcp"
+                },
+                {
+                  "containerPort": 9697,
+                  "protocol": "tcp"
+                }
+              ],
+              "environment": [
+                {
+                  "name": "ENVIRONMENT",
+                  "value": "prod"
+                },
+                {
+                  "name": "DB_HOST",
+                  "value": "localhost"
+                },
+                {
+                  "name": "DB_NAME",
+                  "value": "mhq-oss"
+                },
+                {
+                  "name": "DB_USER",
+                  "value": "postgres"
+                },
+                {
+                  "name": "DB_PORT",
+                  "value": "5434"
+                },
+                {
+                  "name": "REDIS_HOST",
+                  "value": "localhost"
+                },
+                {
+                  "name": "REDIS_PORT",
+                  "value": "6385"
+                },
+                {
+                  "name": "PORT",
+                  "value": "3333"
+                },
+                {
+                  "name": "ANALYTICS_SERVER_PORT",
+                  "value": "9696"
+                },
+                {
+                  "name": "SYNC_SERVER_PORT",
+                  "value": "9697"
+                },
+                {
+                  "name": "INTERNAL_API_BASE_URL",
+                  "value": "http://localhost:9696"
+                },
+                {
+                  "name": "INTERNAL_SYNC_API_BASE_URL",
+                  "value": "http://localhost:9697"
+                },
+                {
+                  "name": "NEXT_PUBLIC_APP_ENVIRONMENT",
+                  "value": "prod"
+                },
+                {
+                  "name": "BUILD_DATE",
+                  "value": "${{ github.event.head_commit.timestamp }}"
+                },
+                {
+                  "name": "MERGE_COMMIT_SHA",
+                  "value": "${{ github.sha }}"
+                }
+              ],
+              "secrets": [
+                {
+                  "name": "DB_PASS",
+                  "valueFrom": "arn:aws:secretsmanager:${{ env.AWS_REGION }}:${{ env.UTILITIES_ACCOUNT_ID }}:secret:tg-mdw-dora/db-password"
+                }
+              ],
+              "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                  "awslogs-group": "/ecs/tg-mdw-dora",
+                  "awslogs-region": "${{ env.AWS_REGION }}",
+                  "awslogs-stream-prefix": "ecs"
+                }
+              },
+              "mountPoints": [
+                {
+                  "sourceVolume": "postgres-data",
+                  "containerPath": "/efs/postgres_data",
+                  "readOnly": false
+                },
+                {
+                  "sourceVolume": "config-data",
+                  "containerPath": "/efs/config",
+                  "readOnly": false
+                },
+                {
+                  "sourceVolume": "logs-data",
+                  "containerPath": "/efs/logs",
+                  "readOnly": false
+                }
+              ]
+            }
+          ],
+          "volumes": [
+            {
+              "name": "postgres-data",
+              "efsVolumeConfiguration": {
+                "fileSystemId": "${{ secrets.EFS_FILE_SYSTEM_ID }}",
+                "rootDirectory": "/postgres-data",
+                "transitEncryption": "ENABLED",
+                "authorizationConfig": {
+                  "iam": "ENABLED"
+                }
+              }
+            },
+            {
+              "name": "config-data",
+              "efsVolumeConfiguration": {
+                "fileSystemId": "${{ secrets.EFS_FILE_SYSTEM_ID }}",
+                "rootDirectory": "/config-data",
+                "transitEncryption": "ENABLED",
+                "authorizationConfig": {
+                  "iam": "ENABLED"
+                }
+              }
+            },
+            {
+              "name": "logs-data",
+              "efsVolumeConfiguration": {
+                "fileSystemId": "${{ secrets.EFS_FILE_SYSTEM_ID }}",
+                "rootDirectory": "/logs-data",
+                "transitEncryption": "ENABLED",
+                "authorizationConfig": {
+                  "iam": "ENABLED"
+                }
+              }
+            }
+          ]
+        }
+        EOF
+
+    - name: Upload task definition
+      if: ${{ github.event.inputs.push_only != 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: task-definition
+        path: task-definition.json
+
+    - name: Push only - Skip deployment
+      if: ${{ github.event.inputs.push_only == 'true' }}
+      run: |
+        echo "✅ Image pushed successfully to ECR!"
+        echo "📦 Repository: ${{ env.ECR_REPOSITORY }}"
+        echo "🏷️  Tags: ${{ github.sha }}, latest"
+        echo "🚫 Deployment skipped as requested"
+
+  deploy:
+    name: Deploy to ECS (Utilities Account)
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: ${{ github.event.inputs.push_only != 'true' }}
+    
+    steps:
+    - name: Download task definition
+      uses: actions/download-artifact@v4
+      with:
+        name: task-definition
+        path: .
+
+    - name: Configure AWS credentials for Utilities Account
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ env.UTILITIES_AWS_ROLE }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Deploy Amazon ECS task definition
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+      with:
+        task-definition: task-definition.json
+        service: ${{ env.ECS_SERVICE }}
+        cluster: ${{ env.ECS_CLUSTER }}
+        wait-for-service-stability: true
+
+    - name: Verify deployment
+      run: |
+        echo "Deployment completed successfully!"
+        echo "Service: ${{ env.ECS_SERVICE }}"
+        echo "Cluster: ${{ env.ECS_CLUSTER }}"
+        echo "Image: ${{ needs.build-and-push.outputs.image }}" 

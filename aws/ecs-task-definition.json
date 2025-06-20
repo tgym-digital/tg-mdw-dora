@@ -1,0 +1,150 @@
+{
+  "family": "middleware-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "2048",
+  "memory": "4096",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "middleware-container",
+      "image": "ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/middleware:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 3333,
+          "protocol": "tcp"
+        },
+        {
+          "containerPort": 9696,
+          "protocol": "tcp"
+        },
+        {
+          "containerPort": 9697,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "ENVIRONMENT",
+          "value": "prod"
+        },
+        {
+          "name": "DB_HOST",
+          "value": "localhost"
+        },
+        {
+          "name": "DB_NAME",
+          "value": "mhq-oss"
+        },
+        {
+          "name": "DB_USER",
+          "value": "postgres"
+        },
+        {
+          "name": "DB_PORT",
+          "value": "5434"
+        },
+        {
+          "name": "REDIS_HOST",
+          "value": "localhost"
+        },
+        {
+          "name": "REDIS_PORT",
+          "value": "6385"
+        },
+        {
+          "name": "PORT",
+          "value": "3333"
+        },
+        {
+          "name": "ANALYTICS_SERVER_PORT",
+          "value": "9696"
+        },
+        {
+          "name": "SYNC_SERVER_PORT",
+          "value": "9697"
+        },
+        {
+          "name": "INTERNAL_API_BASE_URL",
+          "value": "http://localhost:9696"
+        },
+        {
+          "name": "INTERNAL_SYNC_API_BASE_URL",
+          "value": "http://localhost:9697"
+        },
+        {
+          "name": "NEXT_PUBLIC_APP_ENVIRONMENT",
+          "value": "prod"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "DB_PASS",
+          "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:middleware/db-password"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/middleware",
+          "awslogs-region": "REGION",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "mountPoints": [
+        {
+          "sourceVolume": "postgres-data",
+          "containerPath": "/efs/postgres_data",
+          "readOnly": false
+        },
+        {
+          "sourceVolume": "config-data",
+          "containerPath": "/efs/config",
+          "readOnly": false
+        },
+        {
+          "sourceVolume": "logs-data",
+          "containerPath": "/efs/logs",
+          "readOnly": false
+        }
+      ]
+    }
+  ],
+  "volumes": [
+    {
+      "name": "postgres-data",
+      "efsVolumeConfiguration": {
+        "fileSystemId": "fs-XXXXXXXXX",
+        "rootDirectory": "/postgres-data",
+        "transitEncryption": "ENABLED",
+        "authorizationConfig": {
+          "iam": "ENABLED"
+        }
+      }
+    },
+    {
+      "name": "config-data",
+      "efsVolumeConfiguration": {
+        "fileSystemId": "fs-XXXXXXXXX",
+        "rootDirectory": "/config-data",
+        "transitEncryption": "ENABLED",
+        "authorizationConfig": {
+          "iam": "ENABLED"
+        }
+      }
+    },
+    {
+      "name": "logs-data",
+      "efsVolumeConfiguration": {
+        "fileSystemId": "fs-XXXXXXXXX",
+        "rootDirectory": "/logs-data",
+        "transitEncryption": "ENABLED",
+        "authorizationConfig": {
+          "iam": "ENABLED"
+        }
+      }
+    }
+  ]
+} 
