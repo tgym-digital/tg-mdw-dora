@@ -40,7 +40,7 @@ ENV DB_PORT=5434
 ENV DB_USER=postgres
 ENV REDIS_HOST=localhost
 ENV REDIS_PORT=6385
-ENV PORT=3333
+ENV PORT=3000
 ENV ANALYTICS_SERVER_PORT=9696
 ENV SYNC_SERVER_PORT=9697
 ENV INTERNAL_API_BASE_URL=http://localhost:9696
@@ -131,6 +131,6 @@ RUN mkdir -p /efs/postgres_data \
     && mkdir -p /efs/config \
     && mkdir -p /efs/logs
 
-EXPOSE 3333 9696 9697
+EXPOSE 3000 9696 9697
 
 CMD ["/bin/bash", "-c", "/app/setup_utils/start-ecs.sh"] 

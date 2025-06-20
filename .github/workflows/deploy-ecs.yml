@@ -60,13 +60,11 @@ jobs:
             --build-arg BUILD_DATE="$BUILD_DATE" \
             --build-arg MERGE_COMMIT_SHA="${{ github.sha }}" \
             -t 931900621347.dkr.ecr.eu-west-1.amazonaws.com/mwcloud-utils/tg-mdw-dora:${{ github.sha }} \
-            -t 931900621347.dkr.ecr.eu-west-1.amazonaws.com/mwcloud-utils/tg-mdw-dora:${{ github.sha }}-$SHORT_SHA \
-            -t 931900621347.dkr.ecr.eu-west-1.amazonaws.com/mwcloud-utils/tg-mdw-dora:latest .
+            -t 931900621347.dkr.ecr.eu-west-1.amazonaws.com/mwcloud-utils/tg-mdw-dora:${{ github.sha }}-$SHORT_SHA .
           
           # push images
           docker push 931900621347.dkr.ecr.eu-west-1.amazonaws.com/mwcloud-utils/tg-mdw-dora:${{ github.sha }}
           docker push 931900621347.dkr.ecr.eu-west-1.amazonaws.com/mwcloud-utils/tg-mdw-dora:${{ github.sha }}-$SHORT_SHA
-          docker push 931900621347.dkr.ecr.eu-west-1.amazonaws.com/mwcloud-utils/tg-mdw-dora:latest
 
       # Skip deployment if push_only is true
       - name: Push only - Skip deployment
@@ -74,7 +72,7 @@ jobs:
         run: |
           echo "✅ Image pushed successfully to ECR!"
           echo "📦 Repository: mwcloud-utils/tg-mdw-dora"
-          echo "🏷️  Tags: ${{ github.sha }}, ${{ github.sha }}-$SHORT_SHA, latest"
+          echo "🏷️  Tags: ${{ github.sha }}, ${{ github.sha }}-$SHORT_SHA"
           echo "🚫 Deployment skipped as requested"
 
       # Step 2: Configure AWS credentials for UTILITIES account (ECS deployment)
