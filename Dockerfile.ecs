@@ -136,7 +136,12 @@ RUN mkdir -p /efs/postgres_data \
 # Create user and set permissions AFTER creating directories
 RUN useradd -m -s /bin/bash mdw && \
     chown -R mdw:mdw /app && \
-    chown -R mdw:mdw /efs
+    chown -R mdw:mdw /efs && \
+    chown -R mdw:mdw /var/log && \
+    chown -R mdw:mdw /etc/postgresql && \
+    chown -R mdw:mdw /var/lib/postgresql && \
+    chmod +x /app/setup_utils/* && \
+    chmod 0644 /etc/cron.d/cronjob
 
 
 EXPOSE 3000 9696 9697
